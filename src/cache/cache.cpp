@@ -1,6 +1,6 @@
 #include "cache.h"
-#include <stdexcept>
 #include <limits>
+#include <stdexcept>
 
 static bool is_pow2(uint32_t x) { return x && ((x & (x - 1u)) == 0u); }
 
@@ -28,29 +28,45 @@ uint64_t Cache::tag(uint64_t addr) const {
   return line_addr / num_sets_;
 }
 
-CacheAccessResult Cache::access(uint64_t addr, bool is_write) {
+CacheAccessResult Cache::access(uint64_t addr, AccessType type) {
   stats_.accesses++;
-  if (is_write) stats_.writes++; else stats_.reads++;
+  switch (type) {
+    case AccessType::Read: stats_.reads++; break;
+    case AccessType::Write: stats_.writes++; break;
+    case AccessType::Ifetch: stats_.ifetches++; break;
+  }
 
   tick_++;
   auto& set = sets_[set_index(addr)];
   uint64_t t = tag(addr);
+  const bool is_write = (type == AccessType::Write);
 
   for (auto& line : set) {
     if (line.valid && line.tag == t) {
       stats_.hits++;
       line.last_use = tick_;
       if (is_write) line.dirty = true;
-      return {true, cfg_.hit_lat};
+      return {true, false, cfg_.hit_lat};
     }
   }
 
   stats_.misses++;
   int victim = -1;
   uint64_t best = std::numeric_limits<uint64_t>::max();
-  for (int i = 0; i < (int)set.size(); i++) {
-    if (!set[i].valid) { victim = i; break; }
-    if (set[i].last_use < best) { best = set[i].last_use; victim = i; }
+  for (int i = 0; i < static_cast<int>(set.size()); i++) {
+    if (!set[i].valid) {
+      victim = i;
+      break;
+    }
+    if (set[i].last_use < best) {
+      best = set[i].last_use;
+      victim = i;
+    }
+  }
+
+  bool needs_writeback = set[victim].valid && set[victim].dirty;
+  if (needs_writeback) {
+    stats_.writebacks++;
   }
 
   set[victim].valid = true;
@@ -58,5 +74,5 @@ CacheAccessResult Cache::access(uint64_t addr, bool is_write) {
   set[victim].dirty = is_write;
   set[victim].last_use = tick_;
 
-  return {false, cfg_.hit_lat};
+  return {false, needs_writeback, cfg_.hit_lat};
 }

@@ -6,8 +6,10 @@
 #include <string>
 #include <vector>
 
+using namespace std;
+
 static void usage() {
-  std::cerr
+  cerr
     << "Usage:\n"
     << "  ./gen --kind <stream|ptr|conflict> --out <file> [options]\n\n"
     << "stream/ptr:\n"
@@ -20,23 +22,21 @@ static void usage() {
     << "  ./gen --kind conflict --cache_bytes 32768 --lines 16 --reps 2000 --out traces/conflict.trace\n";
 }
 
-static uint64_t parse_u64(const std::string& s) {
+static uint64_t parse_u64(const string& s) {
   size_t idx = 0;
-  uint64_t v = std::stoull(s, &idx, 0);
+  uint64_t v = stoull(s, &idx, 0);
   (void)idx;
   return v;
 }
 
 int main(int argc, char** argv) {
   try {
-    std::string kind;
-    std::string out_path;
+    string kind;
+    string out_path;
 
-    // stream/ptr params
     uint64_t wset_bytes = 0;
     uint64_t passes = 0;
 
-    // conflict params
     uint64_t cache_bytes = 0;
     uint64_t lines = 0;
     uint64_t reps = 0;
@@ -45,7 +45,7 @@ int main(int argc, char** argv) {
     uint64_t seed = 1;
 
     for (int i = 1; i < argc; i++) {
-      std::string a = argv[i];
+      string a = argv[i];
       if (a == "--kind" && i + 1 < argc) kind = argv[++i];
       else if (a == "--out" && i + 1 < argc) out_path = argv[++i];
       else if (a == "--wset_bytes" && i + 1 < argc) wset_bytes = parse_u64(argv[++i]);
@@ -59,12 +59,12 @@ int main(int argc, char** argv) {
     }
 
     if (kind.empty() || out_path.empty()) { usage(); return 2; }
-    if (line == 0) throw std::runtime_error("line must be > 0");
+    if (line == 0) throw runtime_error("line must be > 0");
 
-    std::ofstream out(out_path);
-    if (!out) throw std::runtime_error("Failed to open output: " + out_path);
+    ofstream out(out_path);
+    if (!out) throw runtime_error("Failed to open output: " + out_path);
 
-    auto emit_i = [&](uint64_t pc) { out << "I 0x" << std::hex << pc << std::dec << "\n"; };
+    auto emit_i = [&](uint64_t pc) { out << "I 0x" << hex << pc << dec << "\n"; };
 
     if (kind == "stream") {
       if (wset_bytes == 0 || passes == 0) { usage(); return 2; }
@@ -78,13 +78,13 @@ int main(int argc, char** argv) {
         for (uint64_t i = 0; i < nlines; i++) {
           if ((op & 0x3FFu) == 0) emit_i(pc += 4);
           uint64_t addr = i * (uint64_t)line;
-          out << "R 0x" << std::hex << addr << std::dec << " 8\n";
+          out << "R 0x" << hex << addr << dec << " 8\n";
           op++;
         }
       }
 
-      std::cerr << "Wrote " << out_path << " (stream wset=" << wset_bytes
-                << ", passes=" << passes << ", line=" << line << ")\n";
+      cerr << "Wrote " << out_path << " (stream wset=" << wset_bytes
+           << ", passes=" << passes << ", line=" << line << ")\n";
       return 0;
     }
 
@@ -93,34 +93,34 @@ int main(int argc, char** argv) {
       wset_bytes = (wset_bytes / line) * line;
       uint64_t nlines = wset_bytes / line;
 
-      std::vector<uint64_t> addrs;
+      vector<uint64_t> addrs;
       addrs.reserve((size_t)nlines);
       for (uint64_t i = 0; i < nlines; i++) addrs.push_back(i * (uint64_t)line);
 
-      std::mt19937_64 rng(seed);
+      mt19937_64 rng(seed);
       uint64_t pc = 0x2000;
       emit_i(pc);
       uint64_t op = 0;
 
       for (uint64_t p = 0; p < passes; p++) {
-        std::shuffle(addrs.begin(), addrs.end(), rng);
+        shuffle(addrs.begin(), addrs.end(), rng);
         for (uint64_t i = 0; i < nlines; i++) {
           if ((op & 0x3FFu) == 0) emit_i(pc += 4);
-          out << "R 0x" << std::hex << addrs[(size_t)i] << std::dec << " 8\n";
+          out << "R 0x" << hex << addrs[(size_t)i] << dec << " 8\n";
           op++;
         }
       }
 
-      std::cerr << "Wrote " << out_path << " (ptr wset=" << wset_bytes
-                << ", passes=" << passes << ", line=" << line << ", seed=" << seed << ")\n";
+      cerr << "Wrote " << out_path << " (ptr wset=" << wset_bytes
+           << ", passes=" << passes << ", line=" << line << ", seed=" << seed << ")\n";
       return 0;
     }
 
     if (kind == "conflict") {
       if (cache_bytes == 0 || lines == 0 || reps == 0) { usage(); return 2; }
-      if (cache_bytes % line != 0) throw std::runtime_error("--cache_bytes must be multiple of --line");
+      if (cache_bytes % line != 0) throw runtime_error("--cache_bytes must be multiple of --line");
 
-      std::vector<uint64_t> addrs;
+      vector<uint64_t> addrs;
       addrs.reserve((size_t)lines);
       for (uint64_t i = 0; i < lines; i++) addrs.push_back(i * cache_bytes);
 
@@ -131,19 +131,19 @@ int main(int argc, char** argv) {
       for (uint64_t r = 0; r < reps; r++) {
         for (uint64_t i = 0; i < lines; i++) {
           if ((op & 0x3FFu) == 0) emit_i(pc += 4);
-          out << "R 0x" << std::hex << addrs[(size_t)i] << std::dec << " 8\n";
+          out << "R 0x" << hex << addrs[(size_t)i] << dec << " 8\n";
           op++;
         }
       }
 
-      std::cerr << "Wrote " << out_path << " (conflict cache_bytes=" << cache_bytes
-                << ", lines=" << lines << ", reps=" << reps << ", line=" << line << ")\n";
+      cerr << "Wrote " << out_path << " (conflict cache_bytes=" << cache_bytes
+           << ", lines=" << lines << ", reps=" << reps << ", line=" << line << ")\n";
       return 0;
     }
 
-    throw std::runtime_error("Unknown --kind");
-  } catch (const std::exception& e) {
-    std::cerr << "Error: " << e.what() << "\n";
+    throw runtime_error("Unknown --kind");
+  } catch (const exception& e) {
+    cerr << "Error: " << e.what() << "\n";
     return 1;
   }
 }

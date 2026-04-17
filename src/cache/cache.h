@@ -2,6 +2,12 @@
 #include <cstdint>
 #include <vector>
 
+enum class AccessType {
+  Read,
+  Write,
+  Ifetch
+};
+
 struct CacheCfg {
   uint32_t size_bytes = 32 * 1024;
   uint32_t assoc = 4;
@@ -15,17 +21,20 @@ struct CacheStats {
   uint64_t misses = 0;
   uint64_t reads = 0;
   uint64_t writes = 0;
+  uint64_t ifetches = 0;
+  uint64_t writebacks = 0;
 };
 
 struct CacheAccessResult {
   bool hit = false;
-  uint32_t cycles = 0; // hit latency; miss penalty handled by caller
+  bool writeback = false;
+  uint32_t cycles = 0; // Cache lookup/hit latency. Additional memory penalties handled by caller.
 };
 
 class Cache {
 public:
   explicit Cache(const CacheCfg& cfg);
-  CacheAccessResult access(uint64_t addr, bool is_write);
+  CacheAccessResult access(uint64_t addr, AccessType type);
   const CacheStats& stats() const { return stats_; }
 
 private:
